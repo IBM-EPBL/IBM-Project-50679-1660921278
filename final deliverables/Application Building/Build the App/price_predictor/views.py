@@ -3,8 +3,16 @@ import requests
 import pickle
 import numpy as np
 import sklearn
+import requests
 
-model = pickle.load(open('./models/random_forest_regression_model.pkl', 'rb'))
+# NOTE: you must manually set API_KEY below using information retrieved from your IBM Cloud account.
+API_KEY = "Jk3HUp_aUWSKvk9YehA_woUFyvn2BzgOxx_O957KanWp"
+token_response = requests.post('https://iam.cloud.ibm.com/identity/token', data={"apikey":
+API_KEY, "grant_type": 'urn:ibm:params:oauth:grant-type:apikey'})
+mltoken = token_response.json()["access_token"]
+
+header = {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + mltoken}
+
 def index(request):
     return render(request,"index.html")
 def Prediction_admin(request):
@@ -57,12 +65,13 @@ def prediction(request):
         if Year < 0:
             return render(request,'Prediction_admin.html',{'prediction_texts':"Sorry you cannot sell this car"})
         else:
-            prediction = model.predict([[Present_Price, Kms_Driven2, Owner, Year,Fuel_Type_CNG, Fuel_Type_Diesel, Fuel_Type_Petrol, 
-                                    Seller_Type_Dealer, Seller_Type_Individual,Transmission_Automatic, Transmission_Mannual]])
+            t = [[float(Present_Price),int( Kms_Driven2),int( Owner),int( Year),int(Fuel_Type_CNG),int( Fuel_Type_Diesel), int(Fuel_Type_Petrol),int(Seller_Type_Dealer),int(Seller_Type_Individual),int(Transmission_Automatic),int(Transmission_Mannual)]]
+            payload_scoring  = {"input_data": [{"fields": [["Present_Price", "Kms_Driven2","Owner", "Year","Fuel_Type_CNG", "Fuel_Type_Diesel", "Fuel_Type_Petrol", 
+                                    "Seller_Type_Dealer", "Seller_Type_Individual","Transmission_Automatic", "Transmission_Mannual"]], "values": t }]}
 
-            output = round(prediction[0], 2)
-            if output < 0:
-                 return render(request,'Prediction_admin.html',{'prediction_texts':"Sorry you cannot sell this car"})
-            else:
-                contex={"output":output}
-                return render(request,'Prediction.html',contex)
+            response_scoring = requests.post('https://eu-de.ml.cloud.ibm.com/ml/v4/deployments/91bc857b-7b6f-46a8-bbc1-cc451dd8e958/predictions?version=2022-11-17', json= payload_scoring , headers={'Authorization': 'Bearer ' + mltoken})
+            print("Scoring response")
+            predictions = response_scoring.json()
+            print(predictions)
+            contex={"output":predictions['predictions'][0]['values'][0][0]}
+            return render(request,'Prediction.html',contex)
